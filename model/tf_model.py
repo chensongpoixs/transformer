@@ -39,15 +39,20 @@ class PositionalEncoding(nn.Module):
         # 初始化一个size为 max_len(设定的最大长度)×embedding维度 的全零矩阵
         # 来存放所有小于这个长度位置对应的positional embedding
         pe = torch.zeros(max_len, d_model, device=DEVICE)
+        print("pe shape:", pe.shape)  # pe shape: torch.Size([5000, 512])
+        print("pe:", pe);
         # 生成一个位置下标的tensor矩阵(每一行都是一个位置下标)
         position = torch.arange(0., max_len, device=DEVICE).unsqueeze(1)
+        print("PositionalEncoding: d_model={}, max_len={}".format(d_model, max_len));
+        print("position shape:", position.shape)  # position shape: torch.Size([5000, 1])
         # 这里幂运算太多，我们使用exp和log来转换实现公式中pos下面要除以的分母（由于是分母，要注意带负号）
         div_term = torch.exp(torch.arange(0., d_model, 2, device=DEVICE) * -(math.log(10000.0) / d_model))
 
         # 根据公式，计算各个位置在各embedding维度上的位置纹理值，存放到pe矩阵中
         pe[:, 0::2] = torch.sin(position * div_term)
+        print("pe after even:", pe);
         pe[:, 1::2] = torch.cos(position * div_term)
-
+        print("pe after odd:", pe);
         # 加1个维度，使得pe维度变为：1×max_len×embedding维度
         # (方便后续与一个batch的句子所有词的embedding批量相加)
         pe = pe.unsqueeze(0)
@@ -95,33 +100,36 @@ def attention(query, key, value, mask=None, dropout=None):
 """
 class MultiHeadedAttention(nn.Module):
     def __init__(self, h, d_model, dropout=0.1):
-        super(MultiHeadedAttention, self).__init__()
+        super(MultiHeadedAttention, self).__init__();
         # 保证可以整除
-        assert d_model % h == 0
+        assert d_model % h == 0;
         # 得到一个head的attention表示维度
-        self.d_k = d_model // h
+        self.d_k = d_model // h;
+        # d_model打印信息 512  h打印信息 8  d_k打印信息 64
+        print("MultiHeadedAttention: d_model={}, h={}, d_k={}".format(d_model, h, self.d_k));
         # head数量
-        self.h = h
+        self.h = h;
         # 定义4个全连接函数，供后续作为WQ，WK，WV矩阵和最后h个多头注意力矩阵concat之后进行变换的矩阵
-        self.linears = clones(nn.Linear(d_model, d_model), 4)
-        self.attn = None
-        self.dropout = nn.Dropout(p=dropout)
+        self.linears = clones(nn.Linear(d_model, d_model), 4);
+        self.attn = None;
+        #  dropout层 用于防止过拟合     
+        self.dropout = nn.Dropout(p=dropout);
 
     def forward(self, query, key, value, mask=None):
         if mask is not None:
-            mask = mask.unsqueeze(1)
+            mask = mask.unsqueeze(1);
         # query的第一个维度值为batch size
-        nbatches = query.size(0)
+        nbatches = query.size(0);
         # 将embedding层乘以WQ，WK，WV矩阵(均为全连接)
         # 并将结果拆成h块，然后将第二个和第三个维度值互换(具体过程见上述解析)
         query, key, value = [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-                             for l, x in zip(self.linears, (query, key, value))]
+                             for l, x in zip(self.linears, (query, key, value))];
         # 调用上述定义的attention函数计算得到h个注意力矩阵跟value的乘积，以及注意力矩阵
-        x, self.attn = attention(query, key, value, mask=mask, dropout=self.dropout)
+        x, self.attn = attention(query, key, value, mask=mask, dropout=self.dropout);
         # 将h个多头注意力矩阵concat起来（注意要先把h变回到第三维的位置）
-        x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
+        x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k);
         # 使用self.linears中构造的最后一个全连接函数来存放变换后的矩阵进行返回
-        return self.linears[-1](x)
+        return self.linears[-1](x);
 
 """
 定义一个层归一化的类
@@ -161,6 +169,7 @@ class PositionwiseFeedForward(nn.Module):
             dropout: dropout概率，默认为0.1
         """
         super(PositionwiseFeedForward, self).__init__()
+        # Linear层，将输入维度从d_model映射到d_ff  
         self.w_1 = nn.Linear(d_model, d_ff)  # 第一个线性层，将维度从d_model扩展到d_ff
         self.w_2 = nn.Linear(d_ff, d_model)  # 第二个线性层，将维度从d_ff压缩回d_model
         self.dropout = nn.Dropout(dropout)    # dropout层，用于防止过拟合
@@ -193,6 +202,8 @@ class SublayerConnection(nn.Module):
 
 def clones(module, N):
     """克隆模型块，克隆的模型块参数不共享"""
+    # copy.deepcopy 用于创建模块的N个独立副本 ==>       
+    # 这些副本在训练过程中将拥有各自独立的参数，不会相互影响
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
 
@@ -203,6 +214,7 @@ class EncoderLayer(nn.Module):
         self.feed_forward = feed_forward
         # SublayerConnection的作用就是把multi和ffn连在一起
         # 只不过每一层输出之后都要先做Layer Norm再残差连接
+        #  中间有2个子层：一个是多头自注意力机制，另一个是前馈神经网络
         self.sublayer = clones(SublayerConnection(size, dropout), 2)
         # d_model
         self.size = size
@@ -287,7 +299,9 @@ class Generator(nn.Module):
         # 然后再进行log_softmax操作(在softmax结果上再做多一次log运算)
         return F.log_softmax(self.proj(x), dim=-1)
 
-
+'''
+Transformer模型的整体结构
+'''
 class Transformer(nn.Module):
     def __init__(self, encoder, decoder, src_embed, tgt_embed, generator):
         super(Transformer, self).__init__()
@@ -303,23 +317,40 @@ class Transformer(nn.Module):
     def forward(self, src, tgt, src_mask, tgt_mask):
         # encoder的结果作为decoder的memory参数传入，进行decode
         return self.decode(self.encode(src, src_mask), src_mask, tgt, tgt_mask)
-
+'''
+构建完整的Transformer模型
+'''
 def make_model(src_vocab, tgt_vocab, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1):
-    c = copy.deepcopy
-    # 实例化Attention对象
+    # 使用深拷贝函数
+    # 只是将函数对象赋值给变量，而不是执行拷贝操作。要真正拷贝数据，需要调用这个函数：
+    # c = copy.deepcopy  # 只是引用
+    # copied_data = c(original_data)  # 这才是真正的拷贝
+    c = copy.deepcopy;
+    #   tokenerizer  词语嵌入  位置编码
+    # 实例化Attention对象  多注意力机制实现  4全连接 函数  
     attn = MultiHeadedAttention(h, d_model).to(DEVICE)
+
     # 实例化FeedForward对象
     ff = PositionwiseFeedForward(d_model, d_ff, dropout).to(DEVICE)
-    # 实例化PositionalEncoding对象
+    # 实例化PositionalEncoding对象 偶数维度使用sin函数，奇数维度使用cos函数
     position = PositionalEncoding(d_model, dropout).to(DEVICE)
-    # 实例化Transformer模型对象
 
+    # 
+    #  
+
+
+
+
+    # 实例化Transformer模型对象
+    '''
+     Transformer模型的整体结构
+    '''
     model = Transformer(
-        Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout).to(DEVICE), N).to(DEVICE),
-        Decoder(DecoderLayer(d_model, c(attn), c(attn), c(ff), dropout).to(DEVICE), N).to(DEVICE),
-        nn.Sequential(Embeddings(d_model, src_vocab).to(DEVICE), c(position)),
-        nn.Sequential(Embeddings(d_model, tgt_vocab).to(DEVICE), c(position)),
-        Generator(d_model, tgt_vocab)).to(DEVICE)
+        Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout).to(DEVICE), N).to(DEVICE), # EncoderLayer ==> encoder layer
+        Decoder(DecoderLayer(d_model, c(attn), c(attn), c(ff), dropout).to(DEVICE), N).to(DEVICE),  #  DecoderLayer ==> decoder layer
+        nn.Sequential(Embeddings(d_model, src_vocab).to(DEVICE), c(position)),  # src_embed ==> source embedding
+        nn.Sequential(Embeddings(d_model, tgt_vocab).to(DEVICE), c(position)),  # tgt_embed ==> target embedding 
+        Generator(d_model, tgt_vocab)).to(DEVICE)  # generator ==> 生成器 
 
     # 初始化模型参数
     # 遍历模型中的所有参数

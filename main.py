@@ -139,31 +139,41 @@ def run():
     # collate_fn=train_dataset.collate_fn 表示自定义的数据整理函数，用于处理每个批次的数据
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=config.batch_size,
                                   collate_fn=train_dataset.collate_fn)
+    print("训练数据加载完成: {} 个批次, train_dataloader:{}   ".format(len(train_dataloader), train_dataloader));
     dev_dataloader = DataLoader(dev_dataset, shuffle=False, batch_size=config.batch_size,
                                 collate_fn=dev_dataset.collate_fn)
     test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=config.batch_size,
                                  collate_fn=test_dataset.collate_fn)
 
     # 初始化模型
-    model = make_model(config.src_vocab_size, config.tgt_vocab_size, config.n_layers,
-                       config.d_model, config.d_ff, config.n_heads, config.dropout)
+    # 构建Transformer模型，传入词汇表大小、层数、模型维度等参数
+    # 这些参数均来自config配置文件
+    # 创建Transformer模型实例
+    model = make_model(config.src_vocab_size, # src_vocab_size:源语言词汇表大小 32000    
+                       config.tgt_vocab_size, # tgt_vocab_size:目标语言词汇表大小 32000
+                       config.n_layers, # n_layers:Transformer模型的层数 6
+                       config.d_model, # d_model:模型的维度 512
+                       config.d_ff,     # d_ff:前馈神经网络的维度 2048
+                       config.n_heads,  # n_heads:多头注意力机制的头数 8
+                       config.dropout); # dropout:dropout率 0.1
 
     #  将模型包装成数据并行模式,这样可以在多个GPU上并行处理数据，提高训练效率
-    model_par = torch.nn.DataParallel(model)
+    model_par = torch.nn.DataParallel(model);
 
     # 训练阶段，选择损失函数和优化器
     # CrossEntropyLoss是常见的分类问题损失函数，ignore_index=0表示忽略填充部分
     # reduction='sum'表示计算损失时会对所有token的损失求和
-    criterion = torch.nn.CrossEntropyLoss(ignore_index=0, reduction='sum')
+    criterion = torch.nn.CrossEntropyLoss(ignore_index=0, reduction='sum');
 
     # 调用get_std_opt函数获取标准的Noam优化器，这通常包括学习率调度器（如预热后衰减）
-    optimizer = get_std_opt(model)
+    optimizer = get_std_opt(model);
 
     # 开始训练
-    train(train_dataloader, dev_dataloader, model, model_par, criterion, optimizer)
+    train(train_dataloader, dev_dataloader, model, model_par, criterion, optimizer);
     # test(test_dataloader, model, criterion)
 
-
+# 256路  32 核  96GB 内存  4TB SSD
+# 8卡  A100 40GB
 if __name__ == "__main__":
     import os
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'

@@ -43,7 +43,7 @@ eos_idx = 3
 # 训练时的批次大小。
 batch_size = 32
 # 训练的总轮次。
-epoch_num = 3
+epoch_num = 300
 # 学习率（learning rate）。
 lr = 3e-4
 
@@ -68,7 +68,7 @@ dev_data_path = './data/json/dev.json'
 test_data_path = './data/json/test.json'
 
 model_path = './weights/transformer_model.pth'
-test_model_path = './run/train/exp/weights/best_bleu_26.30.pth'
+test_model_path = './run/train/exp/weights/last_bleu_17.11.pth'
 
 """
 设备配置
@@ -79,7 +79,8 @@ test_model_path = './run/train/exp/weights/best_bleu_26.30.pth'
 gpu_id = '0'
 device_id = [0]
 # set device
-if gpu_id != '':
-    device = torch.device(f"cuda:{gpu_id}")
-else:
-    device = torch.device('cpu')
+# if gpu_id != '':
+#     device = torch.device(f"cuda:{gpu_id}")
+# else:
+#     device = torch.device('cpu')
+device =   "cuda" if torch.cuda.is_available() else "cpu"; # 检查是否有可用的GPU,否则使用CPU

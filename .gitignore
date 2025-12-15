@@ -1,0 +1,11 @@
+/run
+/__pycache__
+/weights
+/model/__pycache__
+/data/corpus.en
+/data/corpus.ch
+/tokenizer/chn.model
+/tokenizer/chn.vocab
+/tokenizer/eng.model
+/tokenizer/eng.vocab
+/tools/__pycache__
